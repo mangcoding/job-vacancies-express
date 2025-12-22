@@ -64,10 +64,10 @@ A full-stack job portal application built with Express.js, Prisma ORM, SQLite, a
 
 ## Architecture Overview
 
-The application follows a **separation of concerns** architecture pattern with clear boundaries between:
+The application follows a **MVC (Model-View-Controller)** architecture pattern with clear separation of concerns:
 
-1. **API Routes** (`/routes/api/`) - RESTful API endpoints
-2. **Public Routes** (`/routes/public/`) - View routes for rendering pages
+1. **Controllers** (`/controllers/`) - Business logic and request handling
+2. **Routes** (`/routes/api/` and `/routes/public/`) - Route definitions (thin layer)
 3. **Middleware** (`/middleware/`) - Authentication and authorization logic
 4. **Models** (`/prisma/`) - Database schema and Prisma client
 5. **Views** (`/views/`) - EJS templates
@@ -84,12 +84,20 @@ Route Handler (routes/public/ or routes/api/)
     ↓
 Middleware (Authentication/Authorization)
     ↓
-Controller Logic
+Controller (Business Logic)
     ↓
 Prisma Client (Database Operations)
     ↓
 Response (JSON or Rendered View)
 ```
+
+### Architecture Benefits
+
+- **Separation of Concerns**: Routes are thin, controllers handle business logic
+- **Reusability**: Controllers can be reused across different routes
+- **Testability**: Controllers can be unit tested independently
+- **Maintainability**: Business logic is centralized and easier to modify
+- **Scalability**: Easy to add new features without cluttering routes
 
 ## Project Structure
 
@@ -97,6 +105,11 @@ Response (JSON or Rendered View)
 job-vacancies/
 ├── bin/
 │   └── www                 # Server entry point
+├── controllers/           # Business logic controllers
+│   ├── AuthController.js  # Authentication logic
+│   ├── VacancyController.js # Job vacancy logic
+│   ├── AdminController.js # Admin management logic
+│   └── MemberController.js # Member operations logic
 ├── middleware/
 │   ├── auth.js            # JWT authentication middleware (API)
 │   └── viewAuth.js        # Authentication middleware (Views)
@@ -324,19 +337,49 @@ model Application {
    npm install
    ```
 
-3. **Set up environment variables** (optional)
-   Create a `.env` file:
+3. **Set up environment variables**
+   Copy the example environment file and configure it:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` file and update the following variables:
    ```env
-   JWT_SECRET=your-secret-key-change-in-production
+   # Server Configuration
    PORT=3000
    NODE_ENV=development
+   
+   # JWT Secret Key (REQUIRED - Change this!)
+   # Generate a secure secret: openssl rand -base64 32
+   JWT_SECRET=your-secret-key-change-in-production
+   
+   # JWT Token Expiration (optional, default is 24h)
+   JWT_EXPIRES_IN=24h
+   
+   # Database Configuration
+   DATABASE_URL="file:./prisma/database.sqlite"
    ```
+   
+   **Important**: 
+   - Change `JWT_SECRET` to a strong random string in production
+   - Never commit `.env` file to version control (already in .gitignore)
+   - Use `.env.example` as a template for other developers
 
 4. **Initialize database**
    ```bash
    npx prisma generate
    npx prisma migrate dev
    ```
+
+5. **Seed database with test users**
+   ```bash
+   npm run prisma:seed
+   ```
+   
+   This creates:
+   - **Super Admin**: `admin@jobportal.com` / `admin123`
+   - **Test Member**: `member@jobportal.com` / `member123`
+   - Sample job vacancies
 
 5. **Start the server**
    ```bash
@@ -359,9 +402,26 @@ npm run prisma:generate
 # Run migrations
 npm run prisma:migrate
 
+# Seed database with test data
+npm run prisma:seed
+
 # Open Prisma Studio (database GUI)
 npm run prisma:studio
 ```
+
+### Test Users (Created by Seeder)
+
+After running `npm run prisma:seed`, you can login with:
+
+**Super Admin:**
+- Email: `admin@jobportal.com`
+- Password: `admin123`
+- Role: ADMIN
+
+**Test Member:**
+- Email: `member@jobportal.com`
+- Password: `member123`
+- Role: MEMBER
 
 ## Usage Guide
 
@@ -505,14 +565,55 @@ Content-Type: application/json
 }
 ```
 
+## Environment Variables
+
+The application uses environment variables for configuration. All sensitive data is stored in `.env` file (not committed to git).
+
+### Required Variables
+
+- `JWT_SECRET` - Secret key for signing JWT tokens (REQUIRED)
+- `DATABASE_URL` - Database connection string (defaults to SQLite)
+
+### Optional Variables
+
+- `PORT` - Server port (default: 3000)
+- `NODE_ENV` - Environment mode (development/production)
+- `JWT_EXPIRES_IN` - JWT token expiration time (default: 24h)
+
+### Generating Secure Secrets
+
+To generate a secure JWT secret:
+```bash
+openssl rand -base64 32
+```
+
+### Database URLs
+
+**SQLite (default):**
+```env
+DATABASE_URL="file:./prisma/database.sqlite"
+```
+
+**PostgreSQL:**
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/job_vacancies?schema=public"
+```
+
+**MySQL:**
+```env
+DATABASE_URL="mysql://user:password@localhost:3306/job_vacancies"
+```
+
 ## Security Features
 
 1. **Password Hashing**: Passwords are hashed using bcryptjs (10 rounds)
-2. **JWT Tokens**: Secure token-based authentication
-3. **Role-Based Access**: Middleware enforces role-based permissions
-4. **Input Validation**: Server-side validation for all inputs
-5. **SQL Injection Protection**: Prisma ORM prevents SQL injection
-6. **XSS Protection**: EJS escapes HTML by default
+2. **JWT Tokens**: Secure token-based authentication with configurable expiration
+3. **Environment Variables**: Sensitive data stored in `.env` (not in code)
+4. **Role-Based Access**: Middleware enforces role-based permissions
+5. **Input Validation**: Server-side validation for all inputs
+6. **SQL Injection Protection**: Prisma ORM prevents SQL injection
+7. **XSS Protection**: EJS escapes HTML by default
+8. **Gitignore**: `.env` file is excluded from version control
 
 ## Development
 
@@ -528,8 +629,23 @@ npm run prisma:generate
 # Run migrations
 npm run prisma:migrate
 
+# Seed database
+npm run prisma:seed
+
 # Open Prisma Studio
 npm run prisma:studio
+
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run unit tests only
+npm run test:unit
+
+# Run integration tests only
+npm run test:integration
 ```
 
 ### Code Style
@@ -540,6 +656,53 @@ npm run prisma:studio
 - Keep routes organized by feature
 - Use middleware for cross-cutting concerns
 
+## Testing
+
+The project includes comprehensive unit and integration tests using Jest.
+
+### Running Tests
+
+```bash
+# Run all tests with coverage
+npm test
+
+# Run tests in watch mode (for development)
+npm run test:watch
+
+# Run only unit tests
+npm run test:unit
+
+# Run only integration tests
+npm run test:integration
+```
+
+### Test Structure
+
+```
+tests/
+├── setup.js              # Test configuration and setup
+├── unit/                 # Unit tests
+│   └── auth.test.js     # Authentication utilities tests
+└── integration/         # Integration tests
+    ├── auth.test.js     # Authentication API tests
+    ├── vacancies.test.js # Job vacancies API tests
+    └── admin.test.js    # Admin API tests
+```
+
+### Test Coverage
+
+Tests cover:
+- Authentication utilities (JWT token generation, password hashing)
+- Authentication API endpoints (register, login)
+- Job vacancies API endpoints
+- Admin API endpoints (user management, vacancy management)
+- Role-based access control
+- Error handling
+
+### Test Database
+
+Tests use the same database as development (`prisma/database.sqlite`) but clean up data before and after each test suite.
+
 ## Troubleshooting
 
 ### Common Issues
@@ -549,13 +712,23 @@ npm run prisma:studio
    - Run migrations: `npx prisma migrate dev`
 
 2. **Authentication errors**
-   - Check JWT_SECRET is set
+   - Check JWT_SECRET is set in `.env`
    - Verify token is being sent in Authorization header
    - Check token expiration (default: 24 hours)
 
 3. **Prisma Client errors**
    - Run `npx prisma generate` after schema changes
    - Restart the server after generating Prisma Client
+
+4. **Seeder errors**
+   - Ensure database is migrated: `npx prisma migrate dev`
+   - Check that Prisma Client is generated: `npx prisma generate`
+   - Run seeder: `npm run prisma:seed`
+
+5. **Test errors**
+   - Ensure test database is set up
+   - Check `.env.test` file exists
+   - Run `npx prisma generate` before running tests
 
 ## License
 
