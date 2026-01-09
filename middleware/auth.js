@@ -1,7 +1,16 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../prisma/client');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// Ensure dotenv is loaded (in case middleware is loaded before app.js)
+if (!process.env.JWT_SECRET) {
+  require('dotenv').config();
+}
+
+// Helper function to get JWT secret dynamically (to handle test environment changes)
+const getJwtSecret = () => {
+  return process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+};
+
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 // Middleware to verify JWT token
@@ -14,7 +23,7 @@ const authenticateToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Access token required' });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId }
     });
@@ -56,7 +65,7 @@ const requireMember = (req, res, next) => {
 
 // Generate JWT token
 const generateToken = (userId) => {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign({ userId }, getJwtSecret(), { expiresIn: JWT_EXPIRES_IN });
 };
 
 module.exports = {

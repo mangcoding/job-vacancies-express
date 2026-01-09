@@ -30,7 +30,7 @@ router.get('/vacancies', (req, res) => {
 });
 
 router.get('/vacancies/new', (req, res) => {
-  res.render('admin/vacancy-form', { title: 'Create Job Vacancy', vacancy: null });
+  res.render('admin/vacancy-form', { title: 'Create Job Vacancy', vacancy: null, vacancyId: null });
 });
 
 router.get('/vacancies/:id/edit', (req, res) => {
